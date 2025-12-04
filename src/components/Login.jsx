@@ -5,6 +5,7 @@ function Login({ onLoginSuccess }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isSignUp, setIsSignUp] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [message, setMessage] = useState(null);
@@ -58,21 +59,66 @@ function Login({ onLoginSuccess }) {
         });
 
         if (signInError) {
-          // Provide more specific error messages
-          if (signInError.message.includes('Invalid login credentials') || signInError.message.includes('Email not confirmed')) {
-            throw new Error('Invalid email or password. If you just signed up, please check your email and confirm your account first.');
+          // Provide more specific error messages based on error code/message
+          const errorMsg = signInError.message || '';
+          const errorCode = signInError.status || '';
+          
+          console.error('Sign in error:', signInError); // Debug logging
+          
+          if (errorMsg.includes('Invalid login credentials') || errorCode === 400) {
+            throw new Error('Invalid email or password. Please check your credentials and try again.');
+          } else if (errorMsg.includes('Email not confirmed') || errorMsg.includes('email_not_confirmed')) {
+            throw new Error('Please check your email and click the confirmation link to verify your account before signing in.');
+          } else if (errorMsg.includes('User not found')) {
+            throw new Error('No account found with this email. Please sign up first.');
+          } else {
+            // Show the actual error message for debugging
+            throw new Error(`Sign in failed: ${errorMsg || 'Unknown error'}`);
           }
-          throw signInError;
         }
 
         if (data.session) {
           onLoginSuccess();
         } else {
-          throw new Error('Sign in failed. Please try again.');
+          throw new Error('Sign in failed. No session was created. Please try again.');
         }
       }
     } catch (err) {
       setError(err.message || 'An error occurred. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    setMessage(null);
+
+    if (!supabase) {
+      setError('Supabase is not configured. Please check your environment variables.');
+      setLoading(false);
+      return;
+    }
+
+    if (!email) {
+      setError('Please enter your email address first.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) throw resetError;
+
+      setMessage('Password reset email sent! Please check your inbox and follow the instructions.');
+      setShowPasswordReset(false);
+    } catch (err) {
+      setError(err.message || 'Failed to send password reset email. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -133,15 +179,51 @@ function Login({ onLoginSuccess }) {
             {isSignUp && (
               <p className="mt-1 text-xs text-gray-500">Password must be at least 6 characters</p>
             )}
+            {!isSignUp && !showPasswordReset && (
+              <button
+                type="button"
+                onClick={() => setShowPasswordReset(true)}
+                className="mt-1 text-xs text-blue-600 hover:text-blue-700"
+              >
+                Forgot password?
+              </button>
+            )}
           </div>
 
-          <button
+          {showPasswordReset ? (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Enter your email address and we'll send you a password reset link.
+              </p>
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                disabled={loading || !email}
+                className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {loading ? 'Sending...' : 'Send Reset Link'}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPasswordReset(false);
+                  setError(null);
+                  setMessage(null);
+                }}
+                className="w-full px-4 py-2 bg-gray-300 text-gray-700 rounded-lg hover:bg-gray-400 transition-colors"
+              >
+                Back to Sign In
+              </button>
+            </div>
+          ) : (
+            <button
             type="submit"
             disabled={loading}
             className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
           >
             {loading ? 'Loading...' : isSignUp ? 'Sign Up' : 'Sign In'}
           </button>
+          )}
         </form>
 
         <div className="mt-6 text-center">
