@@ -27,36 +27,49 @@ function Login({ onLoginSuccess }) {
         const { data, error: signUpError } = await supabase.auth.signUp({
           email,
           password,
+          options: {
+            emailRedirectTo: window.location.origin,
+          },
         });
 
         if (signUpError) throw signUpError;
 
         if (data.user) {
-          setMessage('Account created successfully! Please check your email to verify your account, or sign in if already verified.');
-          // Auto sign in after signup
-          const { error: signInError } = await supabase.auth.signInWithPassword({
-            email,
-            password,
-          });
-
-          if (signInError) {
-            // If auto sign-in fails, user needs to verify email first
-            setMessage('Account created! Please check your email to verify your account before signing in.');
-            setIsSignUp(false);
-          } else {
+          // Check if email confirmation is required
+          if (data.user.email_confirmed_at || data.session) {
+            // User is already confirmed or auto-confirmed, sign them in
             onLoginSuccess();
+          } else {
+            // Email confirmation required
+            setMessage('Account created! Please check your email and click the confirmation link to verify your account. After verification, you can sign in.');
+            setIsSignUp(false);
+            setEmail(''); // Clear email so user can enter it again for sign in
+            setPassword(''); // Clear password
           }
+        } else {
+          setMessage('Account creation initiated. Please check your email for confirmation instructions.');
+          setIsSignUp(false);
         }
       } else {
         // Sign in
-        const { error: signInError } = await supabase.auth.signInWithPassword({
+        const { data, error: signInError } = await supabase.auth.signInWithPassword({
           email,
           password,
         });
 
-        if (signInError) throw signInError;
+        if (signInError) {
+          // Provide more specific error messages
+          if (signInError.message.includes('Invalid login credentials') || signInError.message.includes('Email not confirmed')) {
+            throw new Error('Invalid email or password. If you just signed up, please check your email and confirm your account first.');
+          }
+          throw signInError;
+        }
 
-        onLoginSuccess();
+        if (data.session) {
+          onLoginSuccess();
+        } else {
+          throw new Error('Sign in failed. Please try again.');
+        }
       }
     } catch (err) {
       setError(err.message || 'An error occurred. Please try again.');

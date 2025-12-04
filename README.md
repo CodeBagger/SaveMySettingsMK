@@ -28,9 +28,14 @@ A React application for managing integration settings across multiple projects. 
 4. Go to **Settings** → **API** to get your project credentials:
    - **Project URL** (something like `https://xxxxx.supabase.co`)
    - **anon/public key** (your anon key)
-5. Enable Email Authentication:
+5. Configure Email Authentication:
    - Go to **Authentication** → **Providers** in your Supabase dashboard
    - Make sure **Email** provider is enabled
+   - **For Development**: To disable email confirmation (recommended for testing):
+     - Go to **Authentication** → **Settings** → **Auth**
+     - Under "Email Auth", toggle off **"Enable email confirmations"**
+     - This allows users to sign in immediately after signup without email verification
+   - **For Production**: Keep email confirmations enabled for security
    - Configure email templates if needed (optional)
 
 ### 2. Configure Environment Variables
