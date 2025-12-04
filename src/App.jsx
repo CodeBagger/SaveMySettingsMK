@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ProjectSelector from './components/ProjectSelector';
 import SettingForm from './components/SettingForm';
 import SettingsList from './components/SettingsList';
+import ApiKeysManager from './components/ApiKeysManager';
 import Login from './components/Login';
 import {
   getProjects,
@@ -365,6 +366,8 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
             />
           </>
         )}
+
+        <ApiKeysManager />
       </div>
     </div>
   );
