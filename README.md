@@ -4,9 +4,11 @@ A React application for managing integration settings across multiple projects. 
 
 ## Features
 
+- **User Authentication**: Secure email/password authentication with Supabase Auth
+- **Multi-User Support**: Each user has their own isolated projects and settings
 - **Project Management**: Create, select, and delete projects
 - **Settings Management**: Add, edit, and delete key-value pair settings per project
-- **Supabase Integration**: All settings are persisted in Supabase database
+- **Supabase Integration**: All settings are persisted in Supabase database with Row Level Security
 - **Modern UI**: Clean, responsive interface built with Tailwind CSS
 
 ## Prerequisites
@@ -22,9 +24,14 @@ A React application for managing integration settings across multiple projects. 
 1. Create a new project at [supabase.com](https://supabase.com)
 2. Go to **SQL Editor** in your Supabase dashboard
 3. Run the SQL script from `supabase/schema.sql` to create the necessary tables and policies
+   - **Note**: If you have an existing database, use `supabase/migration_add_user_auth.sql` instead to migrate your data
 4. Go to **Settings** → **API** to get your project credentials:
    - **Project URL** (something like `https://xxxxx.supabase.co`)
    - **anon/public key** (your anon key)
+5. Enable Email Authentication:
+   - Go to **Authentication** → **Providers** in your Supabase dashboard
+   - Make sure **Email** provider is enabled
+   - Configure email templates if needed (optional)
 
 ### 2. Configure Environment Variables
 
@@ -55,11 +62,17 @@ Navigate to `http://localhost:5173`
 
 ## Usage
 
-1. **Create a Project**: Click "Add New Project" and enter a project name
-2. **Select a Project**: Click on any project name to view its settings
-3. **Add Settings**: Enter a key and value in the form and click "Add Setting"
-4. **Edit Settings**: Click the "Edit" button next to any setting
-5. **Delete Settings**: Click the "Delete" button next to any setting
+1. **Sign Up / Sign In**: 
+   - First-time users: Click "Don't have an account? Sign up" to create a new account
+   - Enter your email and password (minimum 6 characters)
+   - After signup, you may need to verify your email (check your inbox)
+   - Existing users: Enter your email and password to sign in
+2. **Create a Project**: Click "Add New Project" and enter a project name
+3. **Select a Project**: Click on any project name to view its settings
+4. **Add Settings**: Enter a key and value in the form and click "Add Setting"
+5. **Edit Settings**: Click the "Edit" button next to any setting
+6. **Delete Settings**: Click the "Delete" button next to any setting
+7. **Logout**: Click the "Logout" button in the top right corner
 
 ## Example
 
@@ -71,18 +84,23 @@ For a shipment integration, you might add:
 
 The application uses two main tables:
 
-- **projects**: Stores project names
-- **settings**: Stores key-value pairs linked to projects
+- **projects**: Stores project names with user ownership
+- **settings**: Stores key-value pairs linked to projects with user ownership
+
+Both tables include `user_id` columns that reference `auth.users` to ensure data isolation between users.
 
 See `supabase/schema.sql` for the complete schema definition.
 
-## Security Notes
+## Security
 
-The provided SQL schema includes public read/write access policies for simplicity. In a production environment, you should:
+The application implements Row Level Security (RLS) policies that ensure:
 
-1. Implement proper authentication (Supabase Auth)
-2. Update Row Level Security (RLS) policies to restrict access based on user authentication
-3. Consider using service role keys for server-side operations only
+- Users can only view, create, update, and delete their own projects and settings
+- Data is automatically filtered by the authenticated user's ID
+- All database operations require authentication
+- Foreign key constraints ensure data integrity
+
+The RLS policies use `auth.uid()` to automatically filter data based on the currently authenticated user.
 
 ## Build for Production
 

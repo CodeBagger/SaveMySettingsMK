@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import ProjectSelector from './components/ProjectSelector';
 import SettingForm from './components/SettingForm';
 import SettingsList from './components/SettingsList';
+import Login from './components/Login';
 import {
   getProjects,
   getProjectSettings,
@@ -11,9 +12,11 @@ import {
   deleteSetting,
   deleteProject as deleteProjectStorage,
 } from './utils/storage';
-import { isSupabaseConfigured } from './lib/supabase';
+import { isSupabaseConfigured, supabase } from './lib/supabase';
 
 function App() {
+  const [user, setUser] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [projects, setProjects] = useState([]);
   const [currentProject, setCurrentProject] = useState('');
   const [settings, setSettings] = useState({});
@@ -21,8 +24,39 @@ function App() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Load projects on mount
+  // Check authentication state on mount
   useEffect(() => {
+    const checkAuth = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        setUser(session?.user ?? null);
+      } catch (err) {
+        console.error('Error checking auth:', err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+
+    checkAuth();
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  // Load projects when user is authenticated
+  useEffect(() => {
+    if (!user) {
+      setProjects([]);
+      setCurrentProject('');
+      setSettings({});
+      setLoading(false);
+      return;
+    }
+
     const loadProjects = async () => {
       try {
         setLoading(true);
@@ -52,7 +86,7 @@ function App() {
     };
 
     loadProjects();
-  }, []);
+  }, [user]);
 
   // Load settings when project changes
   useEffect(() => {
@@ -171,6 +205,24 @@ function App() {
     setEditingSetting(null);
   };
 
+  const handleLoginSuccess = () => {
+    // Auth state change will trigger project loading
+    setError(null);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await supabase.auth.signOut();
+      setProjects([]);
+      setCurrentProject('');
+      setSettings({});
+      setEditingSetting(null);
+    } catch (err) {
+      console.error('Error logging out:', err);
+      setError('Failed to log out. Please try again.');
+    }
+  };
+
   // Check if Supabase is configured
   const supabaseConfigured = isSupabaseConfigured();
   
@@ -221,6 +273,22 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
     );
   }
 
+  // Show login screen if not authenticated
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <Login onLoginSuccess={handleLoginSuccess} />;
+  }
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
@@ -236,8 +304,24 @@ VITE_SUPABASE_ANON_KEY=your_supabase_anon_key`}
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 py-8 px-4">
       <div className="max-w-6xl mx-auto">
         <header className="mb-8 text-center">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">Save My Settings</h1>
-          <p className="text-gray-600">Manage integration settings for your projects</p>
+          <div className="flex justify-between items-center mb-4">
+            <div className="flex-1"></div>
+            <div className="flex-1 text-center">
+              <h1 className="text-4xl font-bold text-gray-800 mb-2">Save My Settings</h1>
+              <p className="text-gray-600">Manage integration settings for your projects</p>
+            </div>
+            <div className="flex-1 flex justify-end">
+              <div className="flex items-center gap-4">
+                <span className="text-sm text-gray-600">{user.email}</span>
+                <button
+                  onClick={handleLogout}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                >
+                  Logout
+                </button>
+              </div>
+            </div>
+          </div>
         </header>
 
         {error && (

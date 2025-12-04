@@ -2,6 +2,15 @@
 
 import { supabase, isSupabaseConfigured } from '../lib/supabase';
 
+// Get current user ID
+const getUserId = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) {
+    throw new Error('User not authenticated');
+  }
+  return user.id;
+};
+
 // Get all projects
 export const getProjects = async () => {
   if (!isSupabaseConfigured() || !supabase) {
@@ -9,6 +18,7 @@ export const getProjects = async () => {
   }
   
   try {
+    // RLS will automatically filter by user_id
     const { data, error } = await supabase
       .from('projects')
       .select('name')
@@ -29,6 +39,7 @@ export const getProjectSettings = async (projectName) => {
   }
   
   try {
+    // RLS will automatically filter by user_id
     const { data, error } = await supabase
       .from('settings')
       .select('key, value')
@@ -56,9 +67,10 @@ export const createProject = async (projectName) => {
   }
   
   try {
+    const user_id = await getUserId();
     const { error } = await supabase
       .from('projects')
-      .insert([{ name: projectName }]);
+      .insert([{ name: projectName, user_id }]);
 
     if (error) throw error;
     return true;
@@ -75,15 +87,8 @@ export const deleteProject = async (projectName) => {
   }
   
   try {
-    // First delete all settings for this project
-    const { error: settingsError } = await supabase
-      .from('settings')
-      .delete()
-      .eq('project_name', projectName);
-
-    if (settingsError) throw settingsError;
-
-    // Then delete the project
+    // RLS will automatically filter by user_id, so we can delete by project_name
+    // Settings will be cascade deleted by foreign key constraint
     const { error: projectError } = await supabase
       .from('projects')
       .delete()
@@ -104,16 +109,18 @@ export const saveSetting = async (projectName, key, value) => {
   }
   
   try {
+    const user_id = await getUserId();
     const { error } = await supabase
       .from('settings')
       .upsert(
         {
           project_name: projectName,
+          user_id: user_id,
           key: key,
           value: value,
         },
         {
-          onConflict: 'project_name,key',
+          onConflict: 'user_id,project_name,key',
         }
       );
 
@@ -132,6 +139,7 @@ export const deleteSetting = async (projectName, key) => {
   }
   
   try {
+    // RLS will automatically filter by user_id
     const { error } = await supabase
       .from('settings')
       .delete()
@@ -153,14 +161,18 @@ export const saveProjectSettings = async (projectName, settings) => {
   }
   
   try {
+    const user_id = await getUserId();
+    
     // Convert settings object to array
     const settingsArray = Object.entries(settings).map(([key, value]) => ({
       project_name: projectName,
+      user_id: user_id,
       key,
       value,
     }));
 
     // Delete existing settings for this project
+    // RLS will automatically filter by user_id
     const { error: deleteError } = await supabase
       .from('settings')
       .delete()
